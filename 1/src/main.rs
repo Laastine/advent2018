@@ -1,10 +1,9 @@
 use std::{fs::File, io::Read, path::Path};
-use std::hash::Hash;
-use std::collections::HashSet;
 
 pub struct CircularBuffer {
   pub data: Vec<isize>,
   pub read_idx: usize,
+  pub last_added: isize,
 }
 
 impl CircularBuffer {
@@ -12,6 +11,7 @@ impl CircularBuffer {
     CircularBuffer {
       data,
       read_idx: 0,
+      last_added: 0,
     }
   }
 
@@ -29,19 +29,27 @@ impl CircularBuffer {
     Some(el)
   }
 
-  pub fn find_first_duplice_sum(&mut self) -> Vec<isize> {
+  pub fn find_first_duplice_sum(&mut self) -> isize {
     let mut sums: Vec<isize> = vec![0];
     loop {
       let el = match self.read() {
         Some(val) => val,
-        None => return sums
+        None => self.last_added
       };
-      let sum = sums.iter().last().unwrap() + el;
+      let sum = self.last_added + el;
       sums.push(sum);
-      if !has_uniq_elements(&mut sums) {
-        return sums;
+      self.last_added = sum;
+      if self.has_duplicates_elems(&mut sums) {
+        return self.last_added
       }
     }
+  }
+
+  fn has_duplicates_elems(&mut self, sums: &mut Vec<isize>) -> bool {
+    let orig_len = sums.len();
+    sums.sort();
+    sums.dedup();
+    orig_len > sums.len()
   }
 }
 
@@ -58,42 +66,40 @@ fn numbers_to_vec(input: String) -> Vec<isize> {
     .map(|el| el.parse::<isize>().unwrap_or_else(|e| panic!("Number cast error: {}", e))).collect()
 }
 
-fn calculate_sum(input: Vec<isize>) -> isize {
+fn calculate_sum(input: &Vec<isize>) -> isize {
   input.iter().fold(0, |acc, el| acc + el)
-}
-
-fn has_uniq_elements<T>(iter: T) -> bool
-  where T: IntoIterator, T::Item: Eq + Hash {
-  let mut uniq = HashSet::new();
-  iter.into_iter().all(move |el| uniq.insert(el))
 }
 
 fn main() {
   let numbers = numbers_to_vec(read_input_file("./input.txt"));
-  let res_a = calculate_sum(numbers);
-  println!("Hello {:#?}", res_a);
+  let res_a = calculate_sum(&numbers);
+
+  let mut buf = CircularBuffer::new(numbers);
+  let res_b = buf.find_first_duplice_sum();
+  println!("Part one: {:#?}", res_a);
+  println!("Part two: {:?}", res_b);
 }
 
 #[test]
 fn basic_test() {
   let mut buf = CircularBuffer::new(vec![1, -2, 3, 1, 1, -2]);
-  assert_eq!(buf.find_first_duplice_sum(), vec![0, 1, -1, 2, 3, 4, 2])
+  assert_eq!(buf.find_first_duplice_sum(), 2)
 }
 
 #[test]
 fn test_1() {
   let mut buf = CircularBuffer::new(vec![1, -1]);
-  assert_eq!(buf.find_first_duplice_sum(), vec![0, 1, 0])
+  assert_eq!(buf.find_first_duplice_sum(), 0)
 }
 
 #[test]
 fn test_2() {
   let mut buf = CircularBuffer::new(vec![3, 3, 4, -2, -4]);
-  assert_eq!(buf.find_first_duplice_sum(), vec![0, 3, 6, 10, 8, 4, 7, 10])
+  assert_eq!(buf.find_first_duplice_sum(), 10)
 }
 
 #[test]
 fn test_3() {
   let mut buf = CircularBuffer::new(vec![-6, 4, 8, 5, -6]);
-  assert_eq!(buf.find_first_duplice_sum(), vec![0, -6, -2, 6, 11, 5, -1, 3, 11])
+  assert_eq!(buf.find_first_duplice_sum(), 11)
 }
