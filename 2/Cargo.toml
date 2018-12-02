@@ -4,4 +4,3 @@ version = "0.1.0"
 authors = ["Mikko Kaistinen <mikko.kaistinen@kapsi.fi>"]
 
 [dependencies]
-itertools = "0.7.11"

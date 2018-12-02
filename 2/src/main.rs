@@ -8,15 +8,15 @@ fn read_input_file(filename: &str) -> String {
   buf
 }
 
-fn lines_to_vec(input: &String) -> Vec<&str> {
-  input.as_str().split('\n')
+fn lines_to_vec(input: &str) -> Vec<&str> {
+  input.split('\n')
     .collect::<Vec<&str>>()
 }
 
 fn count_duplicate_elems(input: &str) -> (usize, usize) {
   let orig = input
     .split("")
-    .filter(|el| el.len() > 0)
+    .filter(|el| !el.is_empty())
     .collect::<Vec<&str>>();
   let mut uniqs = orig.clone();
   uniqs
@@ -27,14 +27,13 @@ fn count_duplicate_elems(input: &str) -> (usize, usize) {
   if uniqs.len() < orig.len() {
     let occurencies = uniqs.iter()
       .map(|character| {
-        let map_el = orig.iter().fold(0, |acc, el| {
+        orig.iter().fold(0, |acc, el| {
           if (*character).eq_ignore_ascii_case(*el) {
             acc + 1
           } else {
             acc
           }
-        });
-        map_el
+        })
       })
       .collect::<Vec<usize>>();
 
@@ -55,16 +54,62 @@ fn count_duplicate_elems(input: &str) -> (usize, usize) {
 }
 
 fn count_checksum(input: Vec<(usize, usize)>) -> usize {
-  let occs= input.iter().fold((0, 0), |acc, el| (acc.0 + el.0, acc.1 + el.1));
+  let occs = input.iter().fold((0, 0), |acc, el| (acc.0 + el.0, acc.1 + el.1));
   occs.0 * occs.1
+}
+
+fn is_one_char_diff(a: &str, b: &str) -> bool {
+  let vec_a = a
+    .split("")
+    .filter(|el| !el.is_empty())
+    .collect::<Vec<&str>>();
+  let mut vec_b = b
+    .split("")
+    .filter(|el| !el.is_empty())
+    .collect::<Vec<&str>>();
+
+  let matches = vec_a.iter()
+    .zip(&mut vec_b)
+    .fold(0, |acc, (x, y)| {
+      if x.eq_ignore_ascii_case(*y) { acc + 1 } else { acc }
+    });
+
+  vec_a.len() == vec_b.len() && matches + 1 == vec_b.len()
+}
+
+fn find_one_char_diff<'a>(data: &mut Vec<&'a str>) -> (&'a str, &'a str) {
+  let mut res = ("", "");
+  for (idx, el) in data.iter().enumerate() {
+    data.iter().skip(idx).for_each(|&x| {
+      if is_one_char_diff(x, el) {
+        res = (x, *el);
+      }
+    });
+  }
+  res
 }
 
 fn main() {
   let data = read_input_file("./input.txt");
-  let lines = lines_to_vec(&data);
+  let mut lines = lines_to_vec(&data);
   let res = lines.iter().map(|el| count_duplicate_elems(*el)).collect::<Vec<_>>();
-  let checksums = count_checksum(res);
-  println!("Hello {:?}", checksums);
+  let res_a = count_checksum(res);
+  println!("Part one: {:#?}", res_a);
+  let res_b = find_one_char_diff(&mut lines);
+  println!("Part two: {:#?}", res_b);
+}
+
+#[test]
+fn is_one_char_diff_test() {
+  assert!(is_one_char_diff("axabrbcc", "axabsbcc"));
+}
+
+#[test]
+fn real_diff_test() {
+  let mut data = vec!["abcde", "fghij", "klmno", "pqrst", "fguij", "axcye", "wvxyz"];
+  let res = find_one_char_diff(&mut data);
+  assert_eq!(res.0, "fguij");
+  assert_eq!(res.1, "fghij");
 }
 
 #[test]
