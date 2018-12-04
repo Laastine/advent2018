@@ -40,6 +40,24 @@ impl Area {
     }
   }
 
+  fn has_only_ones(&mut self, pos: (usize, usize), size: (usize, usize)) -> bool {
+    for x in (pos.0)..(size.0 + pos.0) {
+      for y in (pos.1)..(size.1 + pos.1) {
+        if self.area[&(x, y)] > 1 {
+          return false
+        }
+      }
+    }
+    true
+  }
+
+  pub fn find_rectangle_with_ones<'a>(&mut self, data: &'a Line) -> Option<&'a str> {
+    if self.has_only_ones(data.pos, data.size) {
+      return Some(data.id)
+    }
+    None
+  }
+
   pub fn get_areas(&self) -> (usize, usize) {
     self.area.iter()
         .fold((0, 0), |acc, (_, &val)| {
@@ -58,23 +76,27 @@ fn read_input_file(filename: &str) -> String {
 
 fn lines_to_vec(input: &str) -> Vec<&str> {
   input.split('\n')
-    .collect::<Vec<&str>>()
+       .collect::<Vec<&str>>()
 }
 
 fn parse_line(line: &str) -> Line {
-  let elems = line.split(" ").collect::<Vec<&str>>();
-  let pos = elems[2].trim_matches(':').split(",").map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>();
-  let size = elems[3].split("x").map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>();
-  Line::new(elems[0],(pos[0], pos[1]),(size[0], size[1]))
+  let elems = line.split(' ').collect::<Vec<&str>>();
+  let pos = elems[2].trim_matches(':').split(',').map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>();
+  let size = elems[3].split('x').map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>();
+  Line::new(elems[0], (pos[0], pos[1]), (size[0], size[1]))
 }
 
 fn main() {
   let data = read_input_file("./input.txt");
   let mut area = Area::new();
-  lines_to_vec(&data).iter()
-       .map(|el| parse_line(*el))
-       .for_each(|el| area.add_rectangle(el.pos, el.size));
-  println!("{:?}", area.get_areas());
+  let lines = lines_to_vec(&data).iter().map(|el| parse_line(*el)).collect::<Vec<Line>>();
+
+  lines.iter().for_each(|el| area.add_rectangle(el.pos, el.size));
+  println!("Part one: {:?}", area.get_areas());
+
+  let line = lines.iter()
+                  .find(|&el| area.find_rectangle_with_ones(el).is_some()).unwrap();
+  println!("Part two: {:?}", line.id);
 }
 
 
@@ -88,7 +110,6 @@ fn main() {
 .111133.
 ........
 */
-
 #[test]
 fn basic_test() {
   let input = vec!["#1 @ 1,3: 4x4", "#2 @ 3,1: 4x4", "#3 @ 5,5: 2x2"];
@@ -97,4 +118,28 @@ fn basic_test() {
        .map(|el| parse_line(*el))
        .for_each(|el| area.add_rectangle(el.pos, el.size));
   assert_eq!(area.get_areas(), (28, 4))
+}
+
+/**
+........
+...2222.
+...2222.
+.11XX22.
+.11XX22.
+.111133.
+.111133.
+........
+*/
+#[test]
+fn rectangle_with_ones_test() {
+  let input = vec!["#1 @ 1,3: 4x4", "#2 @ 3,1: 4x4", "#3 @ 5,5: 2x2"];
+  let mut area = Area::new();
+  let lines = input.iter()
+                   .map(|el| parse_line(*el))
+                   .collect::<Vec<Line>>();
+
+  lines.iter().for_each(|el| area.add_rectangle(el.pos, el.size));
+  let line = lines.iter()
+                  .find(|&el| area.find_rectangle_with_ones(el).is_some()).unwrap();
+  assert_eq!(line.id, "#3");
 }
