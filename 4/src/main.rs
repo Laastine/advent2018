@@ -3,27 +3,18 @@ extern crate chrono;
 use chrono::prelude::*;
 use std::{fs::File, io::Read, path::Path};
 use std::collections::HashMap;
-use std::time::Duration;
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Time {
-  pub date_time: chrono::DateTime<Utc>,
-}
 
 #[derive(Debug, PartialEq)]
 struct Entry<'a> {
-  time: Time,
-  action: &'a str
+  date_time: chrono::DateTime<Utc>,
+  action: &'a str,
 }
 
 impl<'a> Entry<'a> {
   pub fn new(year: i32, month: u32, day: u32, hour: u32, minute: u32, action: &'a str) -> Self {
-    let time = Time {
-      date_time: Utc.ymd(year, month, day).and_hms(hour, minute, 0)
-    };
     Entry {
-      time,
-      action
+      date_time: Utc.ymd(year, month, day).and_hms(hour, minute, 0),
+      action,
     }
   }
 }
@@ -42,15 +33,33 @@ impl<'a> SleepTime<'a> {
   pub fn process_sleep_times(&mut self, log: &'a Vec<Entry>) {
     let mut curr_quard = "";
     let mut is_awake = true;
-    let mut bed_time = Duration::now();
+    let mut bed_time = Utc::now();
     log.iter().for_each(|entry| {
-      let guard = parse_guard(entry.action);
-      if guard.is_empty() { is_awake = parse_awake_info(entry.action) } else { curr_quard = guard };
-
-      self.sleeps.entry(&curr_quard)
-          .and_modify(|e| { *e = 2 })
-          .or_insert(1);
+      let new_guard = parse_guard(entry.action);
+      let is_awake_sleep_line = new_guard.is_empty();
+      if is_awake_sleep_line {
+        is_awake = parse_awake_info(entry.action);
+        if !is_awake {
+          bed_time = entry.date_time;
+        }
+        let sleep_time = entry.date_time.minute() - bed_time.minute();
+        self.sleeps.entry(&curr_quard)
+          .and_modify(|e| { *e += sleep_time })
+          .or_insert(sleep_time);
+      } else {
+        curr_quard = new_guard
+      }
     })
+  }
+
+  pub fn get_sleepiest_elf(&self) -> (&str, u32) {
+    let mut biggest = ("", 0);
+    for (key, val) in self.sleeps.iter() {
+      if val > &biggest.1 {
+        biggest = (key, *val)
+      }
+    }
+    biggest
   }
 }
 
@@ -67,7 +76,7 @@ fn parse_guard(entry: &str) -> &str {
 }
 
 fn parse_awake_info(entry: &str) -> bool {
-  if entry.starts_with("wakes up") { true } else { false }
+  entry.starts_with("wakes up")
 }
 
 fn read_input_file(filename: &str) -> String {
@@ -80,12 +89,12 @@ fn read_input_file(filename: &str) -> String {
 
 fn lines_to_vec(input: &str) -> Vec<&str> {
   input.lines()
-       .collect::<Vec<&str>>()
+    .collect::<Vec<&str>>()
 }
 
 fn parse_line(input: &str) -> Entry {
   let date_time_and_action = input.split("] ")
-                                  .collect::<Vec<&str>>();
+    .collect::<Vec<&str>>();
   let date = date_time_and_action[0]
     .trim_start_matches('[')
     .split(|c| c == '-' || c == ' ' || c == ':')
@@ -103,17 +112,18 @@ fn main() {
   let data = read_input_file("./input.txt");
   let lines = lines_to_vec(&data);
   let mut parsed_lines = lines.iter()
-                              .map(|&el| parse_line(el))
-                              .collect::<Vec<Entry>>();
+    .map(|&el| parse_line(el))
+    .collect::<Vec<Entry>>();
 
   parsed_lines.sort_by(|a, b| {
-    let duration_a = a.time.date_time.timestamp();
-    let duration_b = b.time.date_time.timestamp();
-    duration_a.cmp(&duration_b)});
+    let duration_a = a.date_time.timestamp();
+    let duration_b = b.date_time.timestamp();
+    duration_a.cmp(&duration_b)
+  });
 
   let formatted = parsed_lines.iter()
-                              .map(|el| format!("{:?} {}\n", el.time.date_time, el.action))
-                              .collect::<String>();
+    .map(|el| format!("{:?} {}\n", el.date_time, el.action))
+    .collect::<String>();
   println!("Part one {}", formatted);
 }
 
@@ -138,16 +148,19 @@ fn basic_test() {
                    "[1518-11-05 00:55] wakes up"];
 
   let mut parsed_lines = lines.iter()
-                              .map(|&el| parse_line(el))
-                              .collect::<Vec<Entry>>();
+    .map(|&el| parse_line(el))
+    .collect::<Vec<Entry>>();
   parsed_lines.sort_by(|a, b| {
-    let duration_a = a.time.date_time.timestamp();
-    let duration_b = b.time.date_time.timestamp();
-    duration_a.cmp(&duration_b)});
-  let formatted = parsed_lines.iter()
-                              .map(|el| format!("{:?} {}\n", el.time.date_time, el.action))
-                              .collect::<String>();
-  println!("parsed_lines {}", formatted);
-
-  assert_eq!(true, false);
+    let duration_a = a.date_time.timestamp();
+    let duration_b = b.date_time.timestamp();
+    duration_a.cmp(&duration_b)
+  });
+//  let formatted = parsed_lines.iter()
+//    .map(|el| format!("{:?} {}\n", el.date_time, el.action))
+//    .collect::<String>();
+  let mut sleep_calculator = SleepTime::new();
+  sleep_calculator.process_sleep_times(&parsed_lines);
+  let sleepiest = sleep_calculator.get_sleepiest_elf();
+  assert_eq!(sleepiest.0, "#10");
+  assert_eq!(sleepiest.1, 50);
 }
