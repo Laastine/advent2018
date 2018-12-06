@@ -41,11 +41,12 @@ impl<'a> SleepTime<'a> {
         is_awake = parse_awake_info(entry.action);
         if !is_awake {
           bed_time = entry.date_time;
+        } else {
+          let sleep_time = entry.date_time.minute() - bed_time.minute();
+          self.sleeps.entry(&curr_quard)
+            .and_modify(|e| { *e += sleep_time })
+            .or_insert(sleep_time);
         }
-        let sleep_time = entry.date_time.minute() - bed_time.minute();
-        self.sleeps.entry(&curr_quard)
-          .and_modify(|e| { *e += sleep_time })
-          .or_insert(sleep_time);
       } else {
         curr_quard = new_guard
       }
@@ -61,6 +62,48 @@ impl<'a> SleepTime<'a> {
     }
     biggest
   }
+
+  pub fn most_common_minute_to_sleep(&self, elf_id: &str, log: &Vec<Entry>) -> u32 {
+    let mut sleep_times = vec![];
+    let mut curr_quard = "";
+    let mut is_awake = true;
+    let mut bed_time = Utc::now();
+    log.iter().for_each(|entry| {
+      let new_guard = parse_guard(entry.action);
+      let is_awake_sleep_line = new_guard.is_empty();
+      if curr_quard == elf_id && is_awake_sleep_line {
+        is_awake = parse_awake_info(entry.action);
+        if !is_awake {
+          bed_time = entry.date_time;
+        } else {
+          let mut times = calc_minute_range(&bed_time, &entry.date_time);
+          println!("{:?}", times);
+          sleep_times.append(&mut times);
+        }
+      } else {
+        curr_quard = new_guard
+      }
+    });
+    let mut minutes: HashMap<u32, u32> = HashMap::new();
+    sleep_times.iter().for_each(|el| {
+      minutes.entry(*el)
+        .and_modify(|x| *x += 1)
+        .or_insert(1);
+    });
+    match minutes.iter().max_by(|(_, &a), (_, &b)| a.cmp(&b)) {
+      Some(val) => *val.0,
+      None => panic!("No value found")
+    }
+  }
+}
+
+fn calc_minute_range(a: &DateTime<Utc>, b: &DateTime<Utc>) -> Vec<u32> {
+  let mut sleep_times = vec![];
+
+  for min in a.minute()..b.minute() {
+    sleep_times.push(min);
+  }
+  sleep_times
 }
 
 fn parse_guard(entry: &str) -> &str {
@@ -108,6 +151,14 @@ fn parse_line(input: &str) -> Entry {
              date_time_and_action[1])
 }
 
+fn multiply_id_with_minute(id: &str, minute: u32) -> u32 {
+  let num = id
+    .trim_start_matches('#')
+    .parse::<u32>()
+    .unwrap_or_else(|e| panic!("Number cast error {:?}", e));
+  minute * num
+}
+
 fn main() {
   let data = read_input_file("./input.txt");
   let lines = lines_to_vec(&data);
@@ -121,10 +172,12 @@ fn main() {
     duration_a.cmp(&duration_b)
   });
 
-  let formatted = parsed_lines.iter()
-    .map(|el| format!("{:?} {}\n", el.date_time, el.action))
-    .collect::<String>();
-  println!("Part one {}", formatted);
+  let mut sleep_calculator = SleepTime::new();
+  sleep_calculator.process_sleep_times(&parsed_lines);
+  let sleepiest_and_sleeps = sleep_calculator.get_sleepiest_elf();
+  let most_common_minute = sleep_calculator.most_common_minute_to_sleep(sleepiest_and_sleeps.0, &parsed_lines);
+
+  println!("Part one: {} & {} => {}", sleepiest_and_sleeps.0, most_common_minute, multiply_id_with_minute(sleepiest_and_sleeps.0, most_common_minute));
 }
 
 #[test]
@@ -155,12 +208,14 @@ fn basic_test() {
     let duration_b = b.date_time.timestamp();
     duration_a.cmp(&duration_b)
   });
-//  let formatted = parsed_lines.iter()
-//    .map(|el| format!("{:?} {}\n", el.date_time, el.action))
-//    .collect::<String>();
+
   let mut sleep_calculator = SleepTime::new();
   sleep_calculator.process_sleep_times(&parsed_lines);
+
   let sleepiest = sleep_calculator.get_sleepiest_elf();
+
   assert_eq!(sleepiest.0, "#10");
   assert_eq!(sleepiest.1, 50);
+  let times = sleep_calculator.most_common_minute_to_sleep("#10", &parsed_lines);
+  assert_eq!(24, times);
 }
