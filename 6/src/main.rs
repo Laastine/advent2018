@@ -36,7 +36,7 @@ fn calc_nth(x: i32, y: i32) -> i32 {
   (y * 1000 + x)
 }
 
-fn position_to_grid_tuples(coords: Vec<(i32, i32)>) -> Vec<(bool, char, i32, i32, usize)> {
+fn position_to_grid_tuples(coords: &Vec<(i32, i32)>) -> Vec<(bool, char, i32, i32, usize)> {
   let mut sign = ' ';
   coords.iter()
     .enumerate()
@@ -103,8 +103,8 @@ fn fill_one_pass(start_coords: Vec<(bool, char, i32, i32, usize)>) -> Vec<(bool,
   filled_ones
 }
 
-fn fill_grid(coords: Vec<(i32, i32)>) -> Vec<(bool, char, i32, i32, usize)> {
-  let mut res = position_to_grid_tuples(coords);
+fn fill_grid(coords: &Vec<(i32, i32)>) -> Vec<(bool, char, i32, i32, usize)> {
+  let mut res = position_to_grid_tuples(&coords);
   let mut iter = 0;
 
   while iter < 160 {
@@ -149,8 +149,7 @@ fn print_grid(grid: &[(bool, char, i32, i32, usize)], grid_size: (i32, i32)) {
   }
 }
 
-#[allow(dead_code)]
-fn calc_grid_size(positions: &[(i32, i32)]) -> (i32, i32) {
+fn calc_grid_size(positions: &[(i32, i32)]) -> ((i32, i32), (i32, i32)) {
   let (max_x, _) = positions.iter()
     .max_by(|&(x1, _), &(x2, _)| x1.cmp(x2))
     .unwrap_or_else(|| panic!("Max X find error"));
@@ -159,7 +158,15 @@ fn calc_grid_size(positions: &[(i32, i32)]) -> (i32, i32) {
     .max_by(|&(_, y1), &(_, y2)| y1.cmp(y2))
     .unwrap_or_else(|| panic!("Max Y find error"));
 
-  (*max_x, *max_y)
+  let (min_x, _) = positions.iter()
+    .min_by(|&(x1, _), &(x2, _)| x1.cmp(x2))
+    .unwrap_or_else(|| panic!("Max Y find error"));
+
+  let (_, min_y) = positions.iter()
+    .min_by(|&(_, y1), &(_, y2)| y1.cmp(y2))
+    .unwrap_or_else(|| panic!("Max Y find error"));
+
+  ((*min_x, *min_y), (*max_x, *max_y))
 }
 
 fn count_letter(grid: &[(bool, char, i32, i32, usize)], letter: char) -> usize {
@@ -172,12 +179,46 @@ fn count_letter(grid: &[(bool, char, i32, i32, usize)], letter: char) -> usize {
   count
 }
 
+fn count_distance_sum(orig_positions: &[(i32, i32)], pos: (i32, i32)) -> i32 {
+  orig_positions.iter().map(|(x, y)| distance((*x, *y), pos)).sum()
+}
+
+fn distance(a: (i32, i32), b: (i32, i32)) -> i32 {
+  (a.0 - b.0).abs() + (a.1 - b.1).abs()
+}
+
+fn find_region_with_all_locations(positions: &Vec<(i32, i32)>, distance: i32) -> usize {
+  let ((min_x, min_y), (max_x, max_y)) = calc_grid_size(positions);
+  let mut area_sizes = vec![];
+  for x in min_x..max_x {
+    for y in min_y..max_y {
+      let dist_sum = count_distance_sum(&positions, (x,y));
+      if dist_sum < distance {
+        area_sizes.push(dist_sum);
+      }
+    }
+  }
+  area_sizes.len()
+}
+
 fn main() {
   let data = read_input_file("./input.txt");
   let mut lines = lines_to_vec(&data);
   let positions = line_to_positions(&mut lines);
-  let areas = fill_grid(positions);
+  let areas = fill_grid(&positions);
   println!("Part one: {:?}", find_biggest_area_which_is_not_expanding_anymore(&areas));
+
+  let res_b = find_region_with_all_locations(&positions, 10_000);
+  println!("Part two: {:?}", res_b);
+}
+
+#[test]
+fn second_test() {
+  let mut lines = lines_to_vec("1, 1\n1, 6\n8, 3\n3, 4\n5, 5\n8, 9");
+  let positions = line_to_positions(&mut lines);
+
+  let res = find_region_with_all_locations(&positions, 32);
+  assert_eq!(res, 16);
 }
 
 /**
@@ -197,7 +238,7 @@ fn basic_test() {
   let mut lines = lines_to_vec("1, 1\n1, 6\n8, 3\n3, 4\n5, 5\n8, 9");
   let positions = line_to_positions(&mut lines);
   let grid_size = calc_grid_size(&positions);
-  let areas = fill_grid(positions);
-  print_grid(&areas, grid_size);
+  let areas = fill_grid(&positions);
+  print_grid(&areas, grid_size.1);
   assert_eq!(find_biggest_area_which_is_not_expanding_anymore(&areas), 17)
 }
